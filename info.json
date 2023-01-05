@@ -1,0 +1,12 @@
+{
+  "commit": {
+    "commit": "2b2463eb474d492cf13eb6f99b64edcd55c3a289",
+    "author": "Joel Nitta <joelnitta@gmail.com>",
+    "time": "2022-10-07 00:47:06",
+    "files": 2,
+    "merge": false,
+    "message": "Update README\n"
+  },
+  "repo": "https://github.com/ropensci/canaper",
+  "pkg": "canaper"
+}
