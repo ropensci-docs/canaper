@@ -1,0 +1,12 @@
+pandoc: 2.16.2
+pkgdown: 2.0.7
+pkgdown_sha: ~
+articles:
+  canape: canape.html
+  how-many-rand: how-many-rand.html
+  parallel: parallel.html
+last_built: 2024-03-02T06:25Z
+urls:
+  reference: https://docs.ropensci.org/canaper/reference
+  article: https://docs.ropensci.org/canaper/articles
+
