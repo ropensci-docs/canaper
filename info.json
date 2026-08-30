@@ -1,0 +1,13 @@
+{
+  "commit": {
+    "commit": "ea3c4cb9f39c037a66359efb046a712a64da0d80",
+    "author": "Joel Nitta <joelnitta@gmail.com>",
+    "time": "2023-05-07T05:24:45Z",
+    "files": 2,
+    "merge": false,
+    "message": "Bump to dev version\n"
+  },
+  "repo": "https://github.com/ropensci/canaper",
+  "pkg": "canaper",
+  "time": "2026-08-30T07:49:45Z"
+}
