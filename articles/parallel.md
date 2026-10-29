@@ -1,0 +1,234 @@
+# Parallel computing
+
+One feature of `canaper` is the ability to use parallel computing
+(running calculations on multiple CPUs simultaneously) to speed up
+analysis. The parallel computing is used during the randomizations
+carried out by
+[`cpr_rand_test()`](https://docs.ropensci.org/canaper/reference/cpr_rand_test.md),
+since this function involves calculating the same values on many random
+replicates. This vignette shows how and when to use parallel computing
+to speed up
+[`cpr_rand_test()`](https://docs.ropensci.org/canaper/reference/cpr_rand_test.md).
+
+(**This vignette assumes a basic understanding of CANAPE, community data
+matrices, and randomizations**. If you aren’t familiar with any of
+these, you should probably see the [the CANAPE example
+vignette](https://docs.ropensci.org/canaper/articles/canape.html)
+first).
+
+Let’s get started by loading the packages used in this vignette.
+
+``` r
+
+library(canaper) # This package
+library(tictoc) # For timing
+library(future) # For parallel computing
+# Set seed for random number generator for reproducible results
+set.seed(12345)
+```
+
+## How to parallelize
+
+`canaper` uses the `future` package to handle parallel computing. In
+`future`, specification of sequential (i.e., no parallel computing)
+vs. parallel computing, and the number of CPUs (i.e., “cores”) to use in
+parallel is specified **outside** of other functions. This is easiest to
+see with an example.
+
+### Sequential mode
+
+First, let’s run an analysis in default sequential mode (without
+parallel computing). I’ll use the `tictoc` package to time how long it
+takes to run.
+
+``` r
+
+tic()
+biod_res_seq <- cpr_rand_test(
+  biod_example$comm, biod_example$phy,
+  null_model = "swap", n_reps = 50
+)
+#> Warning: Abundance data detected. Results will be the same as if using presence/absence data (no abundance weighting is used).
+toc()
+#> 5.131 sec elapsed
+```
+
+Since we have specified 50 random replicates and are not using parallel
+computing,
+[`cpr_rand_test()`](https://docs.ropensci.org/canaper/reference/cpr_rand_test.md)
+calculated the various phylogenetic diversity metrics for each of the 50
+replicates one at a time.
+
+### Parallel mode
+
+Before trying the parallel version, let’s check how many CPUs are
+available to use:
+
+``` r
+
+availableCores()
+#> system 
+#>      6
+```
+
+OK, we have verified that there are multiple cores available for
+parallel computing.
+
+To enable parallel computing, just add one line before
+[`cpr_rand_test()`](https://docs.ropensci.org/canaper/reference/cpr_rand_test.md):
+`plan(multisession, workers = 2)` [^1]. Here, the
+`multisession, workers = 2` part is telling `future` that we want to use
+2 CPUs in parallel on our local machine. See
+[`future::plan()`](https://future.futureverse.org/reference/plan.html)
+for other options. Otherwise, **everything is the same**.
+
+``` r
+
+# Set up parallel computing with 2 CPUs
+plan(multisession, workers = 2)
+
+tic()
+biod_res_par <- cpr_rand_test(
+  biod_example$comm, biod_example$phy,
+  null_model = "swap", n_reps = 50
+)
+#> Warning: Abundance data detected. Results will be the same as if using presence/absence data (no abundance weighting is used).
+toc()
+#> 9.136 sec elapsed
+
+# Change back to default sequential mode
+plan(sequential)
+```
+
+This time, the calculations were carried out in 2 batches in parallel.
+
+But there is no significant improvement in processing time[^2]. What is
+going on here?
+
+## When to parallelize?
+
+Although it may seem to always be a good idea to speed things up by
+using parallel computing, **this is not the case**. There is some
+computational overhead involved in splitting the job across multiple
+processes, coordinating those processes, and putting everything back
+together again.
+
+If your dataset is small, this overhead may outweigh simply running the
+analysis sequentially. That is the case with the `biod_example` data.
+Let’s check the size of this dataset:
+
+``` r
+
+# dim() returns number of rows, then columns
+dim(biod_example$comm)
+#> [1] 127  31
+```
+
+The `biod_example` dataset is small because it is entirely made-up and
+used only for testing code (and we want tests to run quickly).
+
+Let’s see how that compares with another dataset included in `canaper`,
+the `acacia` dataset. The `acacia` dataset is “real-life” data of the
+genus *Acacia* in Australia:
+
+``` r
+
+# dim() returns number of rows, then columns
+dim(acacia$comm)
+#> [1] 3037  508
+```
+
+Quite a bit larger!
+
+Let’s see how parallel computing works on the `acacia` dataset:
+
+``` r
+
+plan(sequential)
+tic()
+acacia_res_seq <- cpr_rand_test(
+  acacia$comm, acacia$phy,
+  null_model = "curveball", n_reps = 100
+)
+#> Warning: Abundance data detected. Results will be the same as if using presence/absence data (no abundance weighting is used).
+#> Warning: 'comm' is > 95% absences (zeros). Be sure that 'n_reps' and 'n_iterations' are sufficiently large to ensure adequate mixing of random communities
+#> Warning: Dropping tips from the tree because they are not present in the community data: 
+#>  Pararchidendron_pruinosum, Paraserianthes_lophantha
+toc()
+#> 107.131 sec elapsed
+```
+
+``` r
+
+# Run cpr_rand_test() in parallel with 2 CPUs
+plan(multisession, workers = 2)
+tic()
+acacia_par_seq <- cpr_rand_test(
+  acacia$comm, acacia$phy,
+  null_model = "curveball", n_reps = 100
+)
+#> Warning: Abundance data detected. Results will be the same as if using presence/absence data (no abundance weighting is used).
+#> Warning: 'comm' is > 95% absences (zeros). Be sure that 'n_reps' and 'n_iterations' are sufficiently large to ensure adequate mixing of random communities
+#> Warning: Dropping tips from the tree because they are not present in the community data: 
+#>  Pararchidendron_pruinosum, Paraserianthes_lophantha
+toc()
+#> 90.475 sec elapsed
+plan(sequential)
+```
+
+And now we start to see the performance improvements that be can be
+gained from parallel computing![^3]
+
+## Progress bars
+
+If you’d like to track the progress of
+[`cpr_rand_test()`](https://docs.ropensci.org/canaper/reference/cpr_rand_test.md)
+in real time, you can enable a progress bar. There are two ways to do so
+(neither of these will show up on the webpage, but do try it at home!).
+Similar to parallelization, this is done outside of the actual function.
+
+One way is to add `progressr::handlers(global = TRUE)` before
+[`cpr_rand_test()`](https://docs.ropensci.org/canaper/reference/cpr_rand_test.md):
+
+``` r
+
+progressr::handlers(global = TRUE)
+
+biod_res_long <- cpr_rand_test(
+  biod_example$comm, biod_example$phy,
+  null_model = "swap", n_reps = 500
+)
+```
+
+The other way is to place
+[`cpr_rand_test()`](https://docs.ropensci.org/canaper/reference/cpr_rand_test.md)
+inside the
+[`progressr::with_progress()`](https://progressr.futureverse.org/reference/with_progress.html)
+function:
+
+``` r
+
+progressr::with_progress(
+  biod_res_long <- cpr_rand_test(
+    biod_example$comm, biod_example$phy,
+    null_model = "swap", n_reps = 500
+  )
+)
+```
+
+## Conclusion
+
+This vignette shows how easy it is to enable parallel computing in
+`canaper`, and when it makes sense to do so. I hope it helps your
+analyses run faster!
+
+[^1]: Of course, the number of workers should be no greater than the
+    number of available CPUs.
+
+[^2]: Results vary each time this vignette is generated, but it is
+    usually about the same; sometimes, the parallel version is even
+    **slower**.
+
+[^3]: The settings used here are chosen to demonstrate performance gains
+    from parellelization with short overall computation time, not for
+    accurately calculating CANAPE.
